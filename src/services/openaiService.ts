@@ -22,7 +22,7 @@ export const analyzeTextWithOpenAI = async ({
     throw new Error("Text data for analysis is required.");
   }
 
-  const fullPrompt = `${prompt}\n\nТекст для анализа:\n${textData}`;
+  const fullPrompt = `${prompt}\n\nДанные для анализа (CSV формат):\n${textData}`;
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -34,7 +34,7 @@ export const analyzeTextWithOpenAI = async ({
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: "system", content: "You are a helpful assistant performing text analysis." },
+          { role: "system", content: "Ты - аналитический ассистент, который помогает анализировать данные из Twitter/X." },
           { role: "user", content: fullPrompt },
         ],
         temperature: 0.7,
