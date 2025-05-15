@@ -8,10 +8,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-const App: React.FC = () => {
-  // Create a new QueryClient instance inside the component
-  const [queryClient] = React.useState(() => new QueryClient());
+// Create a QueryClient instance outside the component
+// This avoids potential issues with React hooks
+const queryClient = new QueryClient();
 
+const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
