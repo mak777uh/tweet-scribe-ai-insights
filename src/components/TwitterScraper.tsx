@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,27 +8,33 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { scrapeTwitterData } from "@/services/twitterScraperService";
-import { convertTwitterDataToCsv, downloadCsv } from "@/utils/csvExport";
+import { processAndFilterTwitterData, convertTwitterDataToJson, downloadJson, ProcessedTweet } from "@/utils/jsonExport";
 
 interface TwitterScraperProps {
-  onDataScraped: (data: any[]) => void;
+  onDataScraped: (data: ProcessedTweet[]) => void;
 }
+
+// Важно: Этот токен предоставлен пользователем для тестирования.
+// В реальном приложении его следует получать более безопасным способом.
+const DEFAULT_TEST_APIFY_TOKEN = "apify_api_ExcsJBIeKbdBl75dLxYAHK9fAZkOQv2Ct73I";
 
 const TwitterScraper: React.FC<TwitterScraperProps> = ({ onDataScraped }) => {
   const [apiToken, setApiToken] = useState<string>("");
   const [twitterUrls, setTwitterUrls] = useState<string>("");
   const [tweetsDesired, setTweetsDesired] = useState<number>(10);
-  const [withReplies, setWithReplies] = useState<boolean>(true);
-  const [includeUserInfo, setIncludeUserInfo] = useState<boolean>(true);
+  const [withReplies, setWithReplies] = useState<boolean>(true); // Keep as Apify param, though not in filtered output
+  const [includeUserInfo, setIncludeUserInfo] = useState<boolean>(true); // Keep as Apify param for bio
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [scrapedData, setScrapedData] = useState<any[] | null>(null);
+  const [scrapedData, setScrapedData] = useState<ProcessedTweet[] | null>(null);
   const { toast } = useToast();
 
-  // Load API token from local storage if available
-  React.useEffect(() => {
+  useEffect(() => {
     const storedToken = localStorage.getItem("apify_token");
     if (storedToken) {
       setApiToken(storedToken);
+    } else {
+      // Use default test token if nothing is in local storage
+      setApiToken(DEFAULT_TEST_APIFY_TOKEN); 
     }
   }, []);
 
@@ -57,7 +63,6 @@ const TwitterScraper: React.FC<TwitterScraperProps> = ({ onDataScraped }) => {
       return;
     }
 
-    // Parse Twitter URLs from textarea
     const urlList = twitterUrls
       .split("\n")
       .map(url => url.trim())
@@ -73,24 +78,31 @@ const TwitterScraper: React.FC<TwitterScraperProps> = ({ onDataScraped }) => {
     }
 
     setIsLoading(true);
+    setScrapedData(null); // Clear previous results before new scrape
+    onDataScraped([]);    // Notify parent to clear its data too
+
     try {
-      const data = await scrapeTwitterData({
+      const rawData = await scrapeTwitterData({
         apiToken,
         twitterUrls: urlList,
         tweetsDesired,
         withReplies,
         includeUserInfo,
       });
+      
+      const processedData = processAndFilterTwitterData(rawData);
 
-      setScrapedData(data);
-      onDataScraped(data);
+      setScrapedData(processedData);
+      onDataScraped(processedData);
       
       toast({
         title: "Data scraped successfully!",
-        description: `Retrieved ${data.length} tweets from ${new Set(data.map(t => t.username)).size} accounts`,
+        description: `Retrieved ${processedData.length} tweets.`,
       });
     } catch (error) {
       console.error("Failed to scrape data:", error);
+      // setScrapedData(null); // Already cleared at the beginning of try
+      // onDataScraped([]);   // Already cleared at the beginning of try
       toast({
         title: "Failed to scrape data",
         description: error instanceof Error ? error.message : "An unknown error occurred",
@@ -101,8 +113,8 @@ const TwitterScraper: React.FC<TwitterScraperProps> = ({ onDataScraped }) => {
     }
   };
 
-  const handleDownloadCsv = () => {
-    if (!scrapedData) {
+  const handleDownloadJson = () => {
+    if (!scrapedData || scrapedData.length === 0) {
       toast({
         title: "No data to download",
         description: "Please scrape data first",
@@ -112,18 +124,18 @@ const TwitterScraper: React.FC<TwitterScraperProps> = ({ onDataScraped }) => {
     }
 
     try {
-      const csvContent = convertTwitterDataToCsv(scrapedData);
+      const jsonContent = convertTwitterDataToJson(scrapedData);
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      downloadCsv(csvContent, `twitter-data-${timestamp}.csv`);
+      downloadJson(jsonContent, `twitter-data-${timestamp}.json`);
       
       toast({
-        title: "CSV downloaded",
-        description: "Twitter data has been exported as CSV",
+        title: "JSON downloaded",
+        description: "Twitter data has been exported as JSON",
       });
     } catch (error) {
-      console.error("Failed to download CSV:", error);
+      console.error("Failed to download JSON:", error);
       toast({
-        title: "Failed to download CSV",
+        title: "Failed to download JSON",
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });
@@ -176,7 +188,7 @@ vitalikbuterin"
               id="tweets-desired"
               type="number"
               min={1}
-              max={3000}
+              max={3000} // Apify might have its own limits
               value={tweetsDesired}
               onChange={(e) => setTweetsDesired(parseInt(e.target.value) || 10)}
               className="mt-1"
@@ -191,7 +203,7 @@ vitalikbuterin"
               checked={withReplies}
               onCheckedChange={(checked) => setWithReplies(checked as boolean)}
             />
-            <Label htmlFor="with-replies" className="cursor-pointer">Include replies</Label>
+            <Label htmlFor="with-replies" className="cursor-pointer">Include replies (for scraping)</Label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -199,7 +211,7 @@ vitalikbuterin"
               checked={includeUserInfo}
               onCheckedChange={(checked) => setIncludeUserInfo(checked as boolean)}
             />
-            <Label htmlFor="include-user-info" className="cursor-pointer">Include user information</Label>
+            <Label htmlFor="include-user-info" className="cursor-pointer">Include user information (for scraping)</Label>
           </div>
         </div>
       </CardContent>
@@ -211,13 +223,13 @@ vitalikbuterin"
         >
           {isLoading ? "Scraping..." : "Scrape Twitter Data"}
         </Button>
-        {scrapedData && (
+        {scrapedData && scrapedData.length > 0 && (
           <Button
             variant="outline"
-            onClick={handleDownloadCsv}
+            onClick={handleDownloadJson}
             className="w-full"
           >
-            Download as CSV
+            Download as JSON
           </Button>
         )}
       </CardFooter>
@@ -226,3 +238,4 @@ vitalikbuterin"
 };
 
 export default TwitterScraper;
+
