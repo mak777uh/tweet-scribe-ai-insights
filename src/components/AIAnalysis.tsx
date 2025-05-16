@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { analyzeTextWithOpenAI } from "@/services/openaiService";
 
 interface AIAnalysisProps {
-  csvData: string | null;
+  jsonData: string | null;
 }
 
 export interface AnalysisProfile {
@@ -37,7 +36,7 @@ const DEFAULT_PROFILES: AnalysisProfile[] = [
   },
 ];
 
-const AIAnalysis: React.FC<AIAnalysisProps> = ({ csvData }) => {
+const AIAnalysis: React.FC<AIAnalysisProps> = ({ jsonData }) => {
   const [apiKey, setApiKey] = useState<string>("");
   const [selectedProfileId, setSelectedProfileId] = useState<string>("sentiment");
   const [customPrompt, setCustomPrompt] = useState<string>("");
@@ -133,10 +132,10 @@ const AIAnalysis: React.FC<AIAnalysisProps> = ({ csvData }) => {
       return;
     }
 
-    if (!csvData) {
+    if (!jsonData) {
       toast({
         title: "No data to analyze",
-        description: "Please scrape Twitter data first or upload a CSV file",
+        description: "Please scrape Twitter data first or ensure JSON data is available",
         variant: "destructive",
       });
       return;
@@ -158,7 +157,7 @@ const AIAnalysis: React.FC<AIAnalysisProps> = ({ csvData }) => {
       const result = await analyzeTextWithOpenAI({
         apiKey,
         prompt: customPrompt,
-        textData: csvData,
+        textData: jsonData,
       });
 
       setAnalysisResult(result);
@@ -269,7 +268,7 @@ const AIAnalysis: React.FC<AIAnalysisProps> = ({ csvData }) => {
       <CardFooter>
         <Button
           onClick={handleAnalyze}
-          disabled={isAnalyzing || !apiKey || !csvData || !customPrompt}
+          disabled={isAnalyzing || !apiKey || !jsonData || !customPrompt}
           className="w-full"
         >
           {isAnalyzing ? "Analyzing..." : "Analyze Twitter Data"}
